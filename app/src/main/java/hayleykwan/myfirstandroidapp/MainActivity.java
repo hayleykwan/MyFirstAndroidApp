@@ -16,6 +16,8 @@ import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.LocationListener;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.places.Places;
 import com.google.android.gms.maps.GoogleMap;
@@ -26,7 +28,8 @@ import com.google.android.gms.maps.model.MarkerOptions;
 
 public class MainActivity extends AppCompatActivity implements OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks,
-        GoogleApiClient.OnConnectionFailedListener {
+        GoogleApiClient.OnConnectionFailedListener,
+        LocationListener {
 
     public final static String EXTRA_MESSAGE = "com.example.myfirstapp.MESSAGE";
     private final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
@@ -39,6 +42,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     private GoogleMap mMap;
     private Location mCurrentLocation;
+
+    private final int UPDATE_LOCATION_IN_MILLISECONDS = 10000;
+    private final int FASTEST_UPDATE_IN_MILLISECONDS = 5000;
+    // A request object to store parameters for requests to the FusedLocationProviderApi.
+    private LocationRequest mLocationRequest;
 
     // The entry point to Google Play services, used by the Places API and Fused Location Provider.
     private GoogleApiClient googleApiClient;
@@ -53,10 +61,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         checkLocationPermission();
 
 
-        MapFragment mapFragment = (MapFragment) getFragmentManager()
-                .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this);
-        System.out.println("finish layout");
     }
 
     private synchronized void buildGoogleApiClient() {
@@ -70,7 +74,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .build();
         googleApiClient.connect();
     }
-
 
     private void checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
@@ -90,7 +93,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-
     private void checkAccessPhotoPermission() {
         if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
                 Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
@@ -109,7 +111,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    //auto here from requestPermissions
+    //auto here from requestPermissions, handles result of permission requests from user
     @Override
     public void onRequestPermissionsResult(int requestCode,
                                            @NonNull String permissions[], @NonNull int[] grantResults) {
@@ -140,11 +142,20 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         updateLocationUI();
     }
 
+    /* set map UI settings inclu. My Location layer and control on the map */
     private void updateLocationUI() {
         if (mMap == null) {
             return;
         }
-
+        if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
+                android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            locationPermissionGranted = true;
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                    PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
+        }
         if (locationPermissionGranted) {
             mMap.setMyLocationEnabled(true);
             mMap.getUiSettings().setMyLocationButtonEnabled(true);
@@ -155,6 +166,32 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    /* sets up a location request */
+    private void createLocationRequest(){
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setInterval(UPDATE_LOCATION_IN_MILLISECONDS); //inexact interval due to other apps
+        mLocationRequest.setFastestInterval(FASTEST_UPDATE_IN_MILLISECONDS); //exact interval
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+    }
+
+    private void getDeviceLocation(){
+        if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
+                android.Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED) {
+            locationPermissionGranted = true;
+        } else {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
+                    PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
+        }
+
+        if(locationPermissionGranted){
+            mCurrentLocation = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
+
+            //request regular updates about the device location.
+            LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, mLocationRequest, this);
+        }
+    }
 
     /* called when user clicks button */
     public void sendMessage(View view) {
@@ -171,9 +208,14 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         startActivity(intent);
     }
 
-    //map is ready to be used
+    /**
+     * Manipulates the map when it's available.
+     * This callback is triggered when the map is ready to be used.
+     */
     @Override
     public void onMapReady(GoogleMap map) {
+        mMap = map;
+        // Do other setup activities here too.
         map.addMarker(new MarkerOptions()
                 .position(new LatLng(27.715298, 85.290431))
                 .title("Marker"));
@@ -182,7 +224,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     /*** OnConnectionFailedLister methods */
     @Override
     public void onConnected(@Nullable Bundle bundle) {
-
+        //connected with google API client
+        //can request from client and build map
+        createLocationRequest();
+        MapFragment mapFragment = (MapFragment) getFragmentManager()
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this); //register for the map callback
+        System.out.println("finish layout");
     }
 
     @Override
@@ -194,6 +242,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
 
     }
-
     /*** OnConnectionFailedLister methods */
+
+    /*** LocationLister methods */
+    @Override
+    public void onLocationChanged(Location location) {
+        mCurrentLocation = location;
+//        updateMarkers();
+    }
+    /*** LocationLister methods */
 }
