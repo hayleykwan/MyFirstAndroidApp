@@ -2,7 +2,9 @@
     <string name="app_name">MyFirstAndroidApp</string>
     <string name="edit_message">Enter a message</string>
     <string name="button_send">Send</string>
-    <string name="start_journey">Start</string>
+    <string name="recyclerview">recyclerview</string>
     <string name="end_journey">End</string>
+    <string name="default_marker_info_title">Stupa, Kathmandu</string>
+    <string name="default__marker_info_snippet">no idea what this is</string>
 
 </resources>

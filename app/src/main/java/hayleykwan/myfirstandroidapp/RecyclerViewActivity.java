@@ -3,11 +3,11 @@ package hayleykwan.myfirstandroidapp;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 
-public class TrackLocationActivity extends AppCompatActivity {
+public class RecyclerViewActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_track_location);
+        setContentView(R.layout.activity_recycler_view);
     }
 }
