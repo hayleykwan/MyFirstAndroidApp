@@ -11,8 +11,10 @@ import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -32,6 +34,7 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Marker;
 
 import java.util.Date;
 
@@ -40,6 +43,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         GoogleApiClient.OnConnectionFailedListener,
         LocationListener {
 
+    private static final String TAG = MainActivity.class.getSimpleName();
     public final static String EXTRA_MESSAGE = "com.example.myfirstapp.MESSAGE";
     private final int PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION = 1;
     private final int PERMISSIONS_REQUEST_ACCESS_PHOTOS = 2;
@@ -67,52 +71,106 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        buildGoogleApiClient();
-//        checkLocationPermission();
 
         if (savedInstanceState != null) {
             mCurrentLocation = savedInstanceState.getParcelable(KEY_LOCATION);
             mCameraPosition = savedInstanceState.getParcelable(KEY_CAMERA_POSITION);
         }
 
+        setContentView(R.layout.activity_main);
+        buildGoogleApiClient();
+        createLocationRequest();
+        googleApiClient.connect();
     }
 
     protected void onStart() {
-        googleApiClient.connect();
+        System.out.println("On Start called.");
         super.onStart();
     }
 
     protected void onStop() {
+        System.out.println("On Stop called.");
         googleApiClient.disconnect();
         super.onStop();
     }
 
+    /**
+     * Stop location updates when the activity is no longer in focus, to reduce battery consumption.
+     */
     @Override
     protected void onPause() {
+        System.out.println("On Pause called.");
         super.onPause();
         stopLocationUpdates();
     }
 
     protected void stopLocationUpdates() {
+        System.out.println("stop location updates called.");
         LocationServices.FusedLocationApi.removeLocationUpdates(
                 googleApiClient, this);
     }
 
     @Override
     public void onResume() {
+        System.out.println("On resume called.");
         super.onResume();
         if (googleApiClient.isConnected()) {
             getDeviceLocation();
         }
+        updateMarkers();
     }
+
+
+    /*********** OnConnectionFailedLister methods */
+    /**
+     * Gets the device's current location and builds the map
+     * when the Google Play services client is successfully connected.
+     */
+    @Override
+    public void onConnected(@Nullable Bundle bundle) {
+        System.out.println("On Google API client connected called.");
+        //connected with google API client (called from onStart)
+        //can request from client and build map
+        getDeviceLocation();
+        MapFragment mapFragment = (MapFragment) getFragmentManager()
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this); //register for the map callback
+        System.out.println("finish layout");
+    }
+
+    @Override
+    public void onConnectionSuspended(int cause) {
+        Log.d(TAG, "Play services connection suspended");
+        System.out.println("Google Play services suspended");
+    }
+
+    @Override
+    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
+        // Refer to the reference doc for ConnectionResult to see what error codes might
+        // be returned in onConnectionFailed.
+        Log.d(TAG, "Play services connection failed: ConnectionResult.getErrorCode() = "
+                + connectionResult.getErrorCode());
+        System.out.println("Play services connection failed: ConnectionResult.getErrorCode() = "
+                + connectionResult.getErrorCode());
+    }
+    /************ OnConnectionFailedLister methods */
+
+    /************ LocationLister methods */
+    @Override
+    public void onLocationChanged(Location location) {
+        System.out.println("On location changed.");
+        mCurrentLocation = location;
+//        System.out.println(DataFormat.getTimeInstance().format(new Date()));
+        updateMarkers();
+    }
+    /************ LocationLister methods */
 
     /**
      * Builds a GoogleApiClient.
      * Uses the addApi() method to request the Google Places API and the Fused Location Provider.
      */
     private synchronized void buildGoogleApiClient() {
+        System.out.println("build Google API client called.");
         googleApiClient = new GoogleApiClient.Builder(this)
                 .enableAutoManage(this /* FragmentActivity */,
                         this /* OnConnectionFailedListener */)
@@ -121,13 +179,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .addApi(Places.GEO_DATA_API)
                 .addApi(Places.PLACE_DETECTION_API)
                 .build();
-        createLocationRequest();
     }
 
     /*
-     * sets up a location request
+     * sets up a location request for fused location provider
      */
     private void createLocationRequest(){
+        System.out.println("Create location request for fused location provider called");
         mLocationRequest = new LocationRequest();
         mLocationRequest.setInterval(UPDATE_LOCATION_IN_MILLISECONDS); //inexact interval due to other apps
         mLocationRequest.setFastestInterval(FASTEST_UPDATE_IN_MILLISECONDS); //exact interval
@@ -138,6 +196,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
      * Gets the current location of the device and starts the location update notifications.
      */
     private void getDeviceLocation(){
+        System.out.println("get device location called.");
         if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
                 android.Manifest.permission.ACCESS_FINE_LOCATION)
                 == PackageManager.PERMISSION_GRANTED) {
@@ -165,8 +224,28 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onMapReady(GoogleMap map) {
         mMap = map;
 
-        // Turn on the My Location layer and the related control on the map.
-        updateLocationUI();
+        updateLocationUI(); // Turn on the My Location layer and the related control on the map.
+
+        updateMarkers(); // Add markers for nearby places.
+
+//        mMap.setInfoWindowAdapter(new GoogleMap().InfoWindowAdapter(){
+//            @Override
+//            // Return null here, so that getInfoContents() is called next.
+//            public View getInfoWindow(Marker arg0) {
+//                return null;
+//            }
+//
+//            @Override
+//            public View getInfoContents(Marker marker) {
+//                // Inflate the layouts for the info window, title and snippet.
+//                View infoWindow = getLayoutInflater().inflate(R.layout.custom_info_contents, null);
+//                TextView title = ((TextView) infoWindow.findViewById(R.id.title));
+//                title.setText(marker.getTitle());
+//                TextView snippet = ((TextView) infoWindow.findViewById(R.id.snippet));
+//                snippet.setText(marker.getSnippet());
+//                return infoWindow;
+//            }
+//        });
 
         if (mCameraPosition != null) {
             mMap.moveCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
@@ -175,11 +254,11 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                     new LatLng(mCurrentLocation.getLatitude(),
                             mCurrentLocation.getLongitude()), DEFAULT_ZOOM));
         } else {
-//            Log.d(TAG, "Current location is null. Using defaults.");
+            Log.d(TAG, "Current location is null. Using defaults.");
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM));
             mMap.getUiSettings().setMyLocationButtonEnabled(false);
         }
-        // Do other setup activities here too.
+
     }
 
     //auto here from requestPermissions, handles result of permission requests from user
@@ -224,15 +303,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (mMap == null) {
             return;
         }
-//        if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
-//                android.Manifest.permission.ACCESS_FINE_LOCATION)
-//                == PackageManager.PERMISSION_GRANTED) {
-//            locationPermissionGranted = true;
-//        } else {
-//            ActivityCompat.requestPermissions(this,
-//                    new String[]{android.Manifest.permission.ACCESS_FINE_LOCATION},
-//                    PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION);
-//        }
         if (locationPermissionGranted) {
             mMap.setMyLocationEnabled(true);
             mMap.getUiSettings().setMyLocationButtonEnabled(true);
@@ -243,12 +313,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
+    @SuppressWarnings("MissingPermission")
     private void updateMarkers(){
+        System.out.println("Update markers called.");
         if(mMap == null){
             return;
         }
         if (locationPermissionGranted){
-            @SuppressWarnings("MissingPermission")
+            // Get the businesses and other points of interest located
+                    // nearest to the device's current location.
             PendingResult<PlaceLikelihoodBuffer> result = Places.PlaceDetectionApi
                     .getCurrentPlace(googleApiClient, null);
             result.setResultCallback(new ResultCallback<PlaceLikelihoodBuffer>() {
@@ -273,6 +346,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 }
             });
         } else {
+            System.out.println("Show default hardcoded location");
             mMap.addMarker(new MarkerOptions()
                     .position(mDefaultLocation)
                     .title(getString(R.string.default_marker_info_title))
@@ -295,6 +369,9 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         startActivity(intent);
     }
 
+    /**
+     * Saves the state of the map when the activity is paused.
+     */
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         if (mMap != null) {
@@ -305,42 +382,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
     }
 
-    /*********** OnConnectionFailedLister methods */
-    /**
-     * Gets the device's current location and builds the map
-     * when the Google Play services client is successfully connected.
-     */
-    @Override
-    public void onConnected(@Nullable Bundle bundle) {
-        //connected with google API client
-        //can request from client and build map
-        getDeviceLocation();
-        MapFragment mapFragment = (MapFragment) getFragmentManager()
-                .findFragmentById(R.id.map);
-        mapFragment.getMapAsync(this); //register for the map callback
-        System.out.println("finish layout");
-    }
-
-    @Override
-    public void onConnectionSuspended(int cause) {
-        System.out.println("Google Play services suspended");
-    }
-
-    @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
-        System.out.println("Play services connection failed: ConnectionResult.getErrorCode() = "
-                + connectionResult.getErrorCode());
-    }
-    /************ OnConnectionFailedLister methods */
-
-    /************ LocationLister methods */
-    @Override
-    public void onLocationChanged(Location location) {
-        mCurrentLocation = location;
-//        System.out.println(DataFormat.getTimeInstance().format(new Date()));
-        updateMarkers();
-    }
-    /************ LocationLister methods */
 
 
     private void checkAccessPhotoPermission() {
