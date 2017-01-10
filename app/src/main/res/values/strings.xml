@@ -5,6 +5,7 @@
     <string name="recyclerview">recyclerview</string>
     <string name="end_journey">End</string>
     <string name="default_marker_info_title">Stupa, Kathmandu</string>
-    <string name="default__marker_info_snippet">no idea what this is</string>
+    <string name="default_marker_info_snippet">no idea what this is</string>
+    <string name="testing">hello</string>
 
 </resources>

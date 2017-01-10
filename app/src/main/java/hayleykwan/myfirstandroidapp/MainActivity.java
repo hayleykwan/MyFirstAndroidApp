@@ -29,12 +29,13 @@ import com.google.android.gms.location.places.PlaceLikelihoodBuffer;
 import com.google.android.gms.location.places.Places;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
-import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.model.CameraPosition;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.Marker;
+import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.MapFragment;
+
 
 import java.util.Date;
 
@@ -79,7 +80,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         setContentView(R.layout.activity_main);
         buildGoogleApiClient();
-        createLocationRequest();
+
         googleApiClient.connect();
     }
 
@@ -92,6 +93,16 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         System.out.println("On Stop called.");
         googleApiClient.disconnect();
         super.onStop();
+    }
+
+    @Override
+    public void onResume() {
+        System.out.println("On resume called.");
+        super.onResume();
+        if (googleApiClient.isConnected()) {
+            getDeviceLocation();
+        }
+        updateMarkers();
     }
 
     /**
@@ -108,16 +119,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         System.out.println("stop location updates called.");
         LocationServices.FusedLocationApi.removeLocationUpdates(
                 googleApiClient, this);
-    }
-
-    @Override
-    public void onResume() {
-        System.out.println("On resume called.");
-        super.onResume();
-        if (googleApiClient.isConnected()) {
-            getDeviceLocation();
-        }
-        updateMarkers();
     }
 
 
@@ -160,7 +161,6 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     public void onLocationChanged(Location location) {
         System.out.println("On location changed.");
         mCurrentLocation = location;
-//        System.out.println(DataFormat.getTimeInstance().format(new Date()));
         updateMarkers();
     }
     /************ LocationLister methods */
@@ -179,6 +179,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
                 .addApi(Places.GEO_DATA_API)
                 .addApi(Places.PLACE_DETECTION_API)
                 .build();
+        createLocationRequest();
     }
 
     /*
@@ -195,6 +196,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
     /**
      * Gets the current location of the device and starts the location update notifications.
      */
+    @SuppressWarnings("MissingPermission")
     private void getDeviceLocation(){
         System.out.println("get device location called.");
         if (ContextCompat.checkSelfPermission(this.getApplicationContext(),
@@ -209,7 +211,8 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         if(locationPermissionGranted){
             mCurrentLocation = LocationServices.FusedLocationApi.getLastLocation(googleApiClient);
-            System.out.println(mCurrentLocation.getLatitude() +", " + mCurrentLocation.getLongitude());
+            System.out.println("my current location: " + mCurrentLocation);
+//            System.out.println(mCurrentLocation.getLatitude() +", " + mCurrentLocation.getLongitude());
 
             //request regular updates about the device location.
             LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, mLocationRequest, this);
@@ -220,6 +223,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
      * Manipulates the map when it's available.
      * This callback is triggered when the map is ready to be used.
      */
+
     @Override
     public void onMapReady(GoogleMap map) {
         mMap = map;
@@ -228,24 +232,24 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
         updateMarkers(); // Add markers for nearby places.
 
-//        mMap.setInfoWindowAdapter(new GoogleMap().InfoWindowAdapter(){
-//            @Override
-//            // Return null here, so that getInfoContents() is called next.
-//            public View getInfoWindow(Marker arg0) {
-//                return null;
-//            }
-//
-//            @Override
-//            public View getInfoContents(Marker marker) {
-//                // Inflate the layouts for the info window, title and snippet.
-//                View infoWindow = getLayoutInflater().inflate(R.layout.custom_info_contents, null);
-//                TextView title = ((TextView) infoWindow.findViewById(R.id.title));
-//                title.setText(marker.getTitle());
-//                TextView snippet = ((TextView) infoWindow.findViewById(R.id.snippet));
-//                snippet.setText(marker.getSnippet());
-//                return infoWindow;
-//            }
-//        });
+        mMap.setInfoWindowAdapter(new GoogleMap.InfoWindowAdapter(){
+            @Override
+            // Return null here, so that getInfoContents() is called next.
+            public View getInfoWindow(Marker arg0) {
+                return null;
+            }
+
+            @Override
+            public View getInfoContents(Marker marker) {
+                // Inflate the layouts for the info window, title and snippet.
+                View infoWindow = getLayoutInflater().inflate(R.layout.custom_info_contents, null);
+                TextView title = ((TextView) infoWindow.findViewById(R.id.title));
+                title.setText(marker.getTitle());
+                TextView snippet = ((TextView) infoWindow.findViewById(R.id.snippet));
+                snippet.setText(marker.getSnippet());
+                return infoWindow;
+            }
+        });
 
         if (mCameraPosition != null) {
             mMap.moveCamera(CameraUpdateFactory.newCameraPosition(mCameraPosition));
@@ -258,13 +262,13 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(mDefaultLocation, DEFAULT_ZOOM));
             mMap.getUiSettings().setMyLocationButtonEnabled(false);
         }
-
     }
 
     //auto here from requestPermissions, handles result of permission requests from user
     @Override
     public void onRequestPermissionsResult(int requestCode,
                                            @NonNull String permissions[], @NonNull int[] grantResults) {
+        System.out.println("request permission result called");
         locationPermissionGranted = false;
         photosPermissionGranted = false;
         switch (requestCode) {
@@ -303,6 +307,7 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
         if (mMap == null) {
             return;
         }
+
         if (locationPermissionGranted) {
             mMap.setMyLocationEnabled(true);
             mMap.getUiSettings().setMyLocationButtonEnabled(true);
@@ -350,9 +355,24 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
             mMap.addMarker(new MarkerOptions()
                     .position(mDefaultLocation)
                     .title(getString(R.string.default_marker_info_title))
-                    .snippet(getString(R.string.default__marker_info_snippet)));
+                    .snippet(getString(R.string.default_marker_info_snippet)));
         }
     }
+
+    /**
+     * Saves the state of the map when the activity is paused.
+     */
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        if (mMap != null) {
+            outState.putParcelable(KEY_CAMERA_POSITION, mMap.getCameraPosition());
+            outState.putParcelable(KEY_LOCATION, mCurrentLocation);
+            //can also put keys to represent whether requesting location updates, and last updated time
+            super.onSaveInstanceState(outState);
+        }
+    }
+
+    static final int TEST = 1;
 
     /* called when user clicks button */
     public void sendMessage(View view) {
@@ -366,19 +386,15 @@ public class MainActivity extends AppCompatActivity implements OnMapReadyCallbac
 
     public void startTracking(View view) {
         Intent intent = new Intent(this, RecyclerViewActivity.class);
-        startActivity(intent);
+        startActivityForResult(intent, TEST);
     }
 
-    /**
-     * Saves the state of the map when the activity is paused.
-     */
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        if (mMap != null) {
-            outState.putParcelable(KEY_CAMERA_POSITION, mMap.getCameraPosition());
-            outState.putParcelable(KEY_LOCATION, mCurrentLocation);
-            //can also put keys to represent whether requesting location updates, and last updated time
-            super.onSaveInstanceState(outState);
+    public void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == TEST) {
+            if(resultCode == RESULT_OK){
+                Toast.makeText(this, data.getStringExtra("testing"), Toast.LENGTH_LONG).show();
+            }
         }
     }
 
