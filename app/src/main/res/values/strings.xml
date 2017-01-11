@@ -8,5 +8,8 @@
     <string name="default_marker_info_snippet">no idea what this is</string>
     <string name="testing">hello</string>
     <string name="title_activity_login">LoginActivity</string>
+    <string name="facebook_app_id">347824948934199</string>
+    <string name="fb_login_protocol_scheme">fb347824948934199</string>
+
 
 </resources>
